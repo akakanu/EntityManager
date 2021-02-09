@@ -38,12 +38,12 @@ namespace EntityManager.SGBD
 
         public override string TypeName(PropertyInfo prop)
         {
-            Object key = prop.GetCustomAttribute(typeof(Id));
+            
             System.Type type = prop.PropertyType;
             string result = null;
             if (type == typeof(Int16) || type == typeof(Int32))
             {
-                result = "int(8)" + (key != null ? (key as Id).AutoIncrement ? " NOT NULL AUTO_INCREMENT" : " NOT NULL" : "");
+                result = "int(8)";
             }
             else if (type == typeof(String))
             {
@@ -72,18 +72,37 @@ namespace EntityManager.SGBD
             string query = null;
             try
             {
+                List<PropertyInfo> contrainte = new List<PropertyInfo>();
+
                 query = "create table if not exists " + TableName(proterty.PropertyType) + "(";
                 string id = null;
                 foreach (PropertyInfo info in proterty.PropertyType.GetProperties(flag))
                 {
+                    string type = TypeName(info);
                     Object key = info.GetCustomAttribute(typeof(Id));
                     if (key != null)
                     {
                         id = ColonnName(info);
+                        type += (key != null ? (key as Id).AutoIncrement ? " NOT NULL AUTO_INCREMENT" : " NOT NULL" : "");
                     }
-                    query += ColonnName(info) + " " + TypeName(info) + ",";
+                    Object obj = info.GetCustomAttribute(typeof(JoinColumn));
+                    if (obj != null)
+                    {
+                        contrainte.Add(info);
+                        PropertyInfo id1 = Key(info.PropertyType);
+                        if (id1 != null)
+                        {
+                            type = TypeName(id1);
+                        }
+                    }
+                    query += ColonnName(info) + " " + type + ",";
                 }
-                query += " Primary key (" + id + "))";
+                query += " Primary key (" + id + "), ";
+                foreach (PropertyInfo item in contrainte)
+                {
+                    query += "FOREIGN KEY (" + ColonnName(item) + ") REFERENCES " + TableName(item.PropertyType) + "(" + ReferenceName(item) + ") ,";
+                }
+                query = query.Substring(0, query.Length - 1) + ")";
             }
             catch (Exception ex)
             {
