@@ -10,6 +10,7 @@ namespace GestionEmploye.Modele
     [Table(Name = "employe", Schema = "public")]
     public class Employe
     {
+
         [Id]
         [Colonne(Name ="id")]
         public int Id { get; set; }

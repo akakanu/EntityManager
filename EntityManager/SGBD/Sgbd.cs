@@ -22,14 +22,14 @@ namespace EntityManager.SGBD
 
         public abstract DbCommand GetCommand(string command, DbConnection connection);
 
-        public abstract string CreateTable(PropertyInfo proterty);
+        public abstract string CreateTable(PropertyInfo table);
 
-        public abstract string TypeName(PropertyInfo field);
+        public abstract string TypeName(PropertyInfo colonne);
         
 
-        protected string TableName(System.Type type)
+        public string TableName(System.Type table)
         {
-            Object obj = type.GetCustomAttribute(typeof(Table));
+            Object obj = table.GetCustomAttribute(typeof(Table));
             if (obj != null ? obj is Table : false)
             {
                 return (obj as Table).Name;
@@ -38,16 +38,16 @@ namespace EntityManager.SGBD
             return null;
         }
 
-        protected string ColonnName(PropertyInfo property)
+        public string ColonnName(PropertyInfo colonne)
         {
-            Object obj = property.GetCustomAttribute(typeof(Colonne));
+            Object obj = colonne.GetCustomAttribute(typeof(Colonne));
             if (obj != null ? obj is Colonne : false)
             {
                 return (obj as Colonne).Name;
             }
             else
             {
-                obj = property.GetCustomAttribute(typeof(JoinColumn));
+                obj = colonne.GetCustomAttribute(typeof(JoinColumn));
                 if (obj != null ? obj is JoinColumn : false)
                 {
                     return (obj as JoinColumn).Name;
@@ -56,10 +56,10 @@ namespace EntityManager.SGBD
             return null;
         }
 
-        protected string ReferenceName(PropertyInfo property)
+        public string ReferenceName(PropertyInfo colonne)
         {
 
-            Object obj = property.GetCustomAttribute(typeof(JoinColumn));
+            Object obj = colonne.GetCustomAttribute(typeof(JoinColumn));
             if (obj != null ? obj is JoinColumn : false)
             {
                 return (obj as JoinColumn).Reference;
@@ -68,15 +68,15 @@ namespace EntityManager.SGBD
             return null;
         }
 
-        protected PropertyInfo Key(System.Type type)
+        public PropertyInfo Key(System.Type table)
         {
 
-            foreach (PropertyInfo info in type.GetProperties(flag))
+            foreach (PropertyInfo colonne in table.GetProperties(flag))
             {
-                Object obj = info.GetCustomAttribute(typeof(Id));
+                Object obj = colonne.GetCustomAttribute(typeof(Id));
                 if (obj != null)
                 {
-                    return info;
+                    return colonne;
                 }
 
             }

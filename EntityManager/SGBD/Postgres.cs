@@ -35,9 +35,9 @@ namespace EntityManager.SGBD
             return null;
         }
 
-        public override string TypeName(PropertyInfo prop)
+        public override string TypeName(PropertyInfo colonne)
         {
-            System.Type type = prop.PropertyType;
+            System.Type type = colonne.PropertyType;
             string result = null;
             if (type == typeof(Int16) || type == typeof(Int32))
             {
@@ -71,48 +71,47 @@ namespace EntityManager.SGBD
             return result;
         }
 
-        public override string CreateTable(PropertyInfo proterty)
+        public override string CreateTable(PropertyInfo table)
         {
             string query = null;
             try
             {
-                List<PropertyInfo> contrainte = new List<PropertyInfo>();
-
-                query = "create table if not exists " + TableName(proterty.PropertyType) + "(";
-                foreach (PropertyInfo info in proterty.PropertyType.GetProperties(flag))
+                List<PropertyInfo> contraintes = new List<PropertyInfo>();
+                query = "create table if not exists " + TableName(table.PropertyType) + "(";
+                foreach (PropertyInfo colonne in table.PropertyType.GetProperties(flag))
                 {
-                    string type = TypeName(info);
-                    Object key = info.GetCustomAttribute(typeof(Id));
+                    string type = TypeName(colonne);
+                    Object key = colonne.GetCustomAttribute(typeof(Id));
                     if (key != null)
                     {
                         if ((key as Id).AutoIncrement)
                         {
-                            if (info.PropertyType == typeof(Int16) || info.PropertyType == typeof(Int32))
+                            if (colonne.PropertyType == typeof(Int16) || colonne.PropertyType == typeof(Int32))
                             {
                                 type = "serial";
                             }
-                            else if (info.PropertyType == typeof(Int64))
+                            else if (colonne.PropertyType == typeof(Int64))
                             {
                                 type = "bigserial";
                             }
                         }
                         type += " primary key";
                     }
-                    Object obj = info.GetCustomAttribute(typeof(JoinColumn));
+                    Object obj = colonne.GetCustomAttribute(typeof(JoinColumn));
                     if (obj != null)
                     {
-                        contrainte.Add(info);
-                        PropertyInfo id = Key(info.PropertyType);
+                        contraintes.Add(colonne);
+                        PropertyInfo id = Key(colonne.PropertyType);
                         if (id != null)
                         {
                             type = TypeName(id);
                         }
                     }
-                    query += ColonnName(info) + " " + type + ",";
+                    query += ColonnName(colonne) + " " + type + ",";
                 }
-                foreach (PropertyInfo item in contrainte)
+                foreach (PropertyInfo contraint in contraintes)
                 {
-                    query += "constraint " + TableName(proterty.PropertyType) + "_" + ColonnName(item) + "_fkey Foreign key (" + ColonnName(item) + ") References " + TableName(item.PropertyType) + "(" + ReferenceName(item) + ") match simple on update cascade on delete no action,";
+                    query += "constraint " + TableName(table.PropertyType) + "_" + ColonnName(contraint) + "_fkey Foreign key (" + ColonnName(contraint) + ") References " + TableName(contraint.PropertyType) + "(" + ReferenceName(contraint) + ") match simple on update cascade on delete no action,";
                 }
                 query = query.Substring(0, query.Length - 1) + ")";
             }

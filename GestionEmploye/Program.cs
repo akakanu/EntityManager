@@ -1,4 +1,5 @@
 ﻿using GestionEmploye.Context;
+using GestionEmploye.Modele;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,7 +17,7 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            
+            db.Insert(new IR());
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

@@ -30,9 +30,9 @@ namespace EntityManager
                         break;
                 }
 
-                foreach (PropertyInfo field in GetType().GetProperties())
+                foreach (PropertyInfo table in GetType().GetProperties())
                 {
-                    string query = sgbd.CreateTable(field);
+                    string query = sgbd.CreateTable(table);
                     Console.WriteLine(query);
                     using (DbConnection dbcon = sgbd.GetConnection())
                     {
@@ -56,6 +56,30 @@ namespace EntityManager
             {
                 Console.WriteLine(ex.Message);
             }
+        }
+
+        public Object Insert(Object obj)
+        {
+            string query = null;
+            try
+            {
+                query = "insert into " + sgbd.TableName(obj.GetType()) +" (";
+                foreach (PropertyInfo colonne in obj.GetType().GetProperties(flag))
+                {
+                    Object annotation = colonne.GetCustomAttribute(typeof(Id));
+                    if(annotation != null?!(annotation as Id).AutoIncrement:true)
+                    {
+                        query += sgbd.ColonnName(colonne) + ",";
+                    }
+                    
+
+                }
+                Console.WriteLine(query);
+            }catch(Exception ex)
+            {
+
+            }
+            return null;
         }
     }
 }
