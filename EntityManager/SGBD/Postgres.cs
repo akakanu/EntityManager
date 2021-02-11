@@ -122,6 +122,10 @@ namespace EntityManager.SGBD
             return query;
         }
 
-
+        public override DbParameter GetParameter(string champ, object valeur)
+        {
+            
+            return new NpgsqlParameter(champ, valeur);
+        }
     }
 }

@@ -17,7 +17,9 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            db.Insert(new IR());
+            IR ir = new IR { BorneMax = 12, BorneMin = 9, Taux = 74 };
+            db.Insert(ir);
+            Console.WriteLine(ir.Id);
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
