@@ -131,5 +131,97 @@ namespace EntityManager
             }
             return obj;
         }
+
+        public Object Update(Object objet)
+        {
+
+            string query = null;
+            PropertyInfo key = null;
+            try
+            {
+                List<DbParameter> parameters = new List<DbParameter>();
+                query = "update " + sgbd.TableName(objet.GetType()) + " set ";
+                foreach (PropertyInfo colonne in objet.GetType().GetProperties(flag))
+                {
+                    if (colonne.GetCustomAttribute(typeof(Id)) != null)
+                    {
+                        key = colonne;
+                    }
+                    query += sgbd.ColonnName(colonne) + " = :" + sgbd.ColonnName(colonne) + ", ";
+                    parameters.Add(sgbd.GetParameter(sgbd.ColonnName(colonne), colonne.GetValue(objet)));
+                }
+                query = query.Trim().Substring(0, query.Trim().Length - 1);
+                if (key != null)
+                {
+                    query += " where " + sgbd.ColonnName(key) + " = :" + sgbd.ColonnName(key);
+                    parameters.Add(sgbd.GetParameter(sgbd.ColonnName(key), key.GetValue(objet)));
+                }
+
+                Console.WriteLine(query);
+
+                using (DbConnection dbcon = sgbd.GetConnection())
+                {
+                    if (dbcon != null)
+                    {
+                        DbCommand command = sgbd.GetCommand(query, dbcon);
+                        try
+                        {
+                            command.Parameters.AddRange(parameters.ToArray());
+                            int result = command.ExecuteNonQuery();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine(ex.Message);
+                        }
+                    }
+
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return objet;
+        }
+
+        public Boolean Delete(Object objet)
+        {
+            string query = null;
+            try
+            {
+                PropertyInfo key = sgbd.Key(objet.GetType());
+                if(key != null)
+                {
+                    query = "delete from " + sgbd.TableName(objet.GetType()) + " where " + sgbd.ColonnName(key) + " = :" + sgbd.ColonnName(key);
+
+                    Console.WriteLine(query);
+
+                    using (DbConnection dbcon = sgbd.GetConnection())
+                    {
+                        if (dbcon != null)
+                        {
+                            DbCommand command = sgbd.GetCommand(query, dbcon);
+                            try
+                            {
+                                command.Parameters.Add(sgbd.GetParameter(sgbd.ColonnName(key), key.GetValue(objet)));
+                                int result = command.ExecuteNonQuery();
+
+                                return true;
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine(ex.Message);
+                            }
+                        }
+
+                    }
+                }
+                
+            }catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return false;
+        }
     }
 }
