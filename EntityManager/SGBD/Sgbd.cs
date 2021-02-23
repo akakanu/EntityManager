@@ -23,7 +23,7 @@ namespace EntityManager.SGBD
         public abstract DbCommand GetCommand(string command, DbConnection connection);
         public abstract DbParameter GetParameter(string champ, Object valeur);
 
-        public abstract string CreateTable(PropertyInfo table);
+        public abstract string CreateTable(System.Type table);
 
         public abstract string TypeName(PropertyInfo colonne);
 

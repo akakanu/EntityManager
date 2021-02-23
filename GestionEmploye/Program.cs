@@ -17,9 +17,9 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            IR ir = new IR { Id = 3, BorneMax = 12, BorneMin = 9, Taux = 15 };
-            db.Delete(ir);
-            Console.WriteLine(ir.Id);
+            var list = db.IR.ToList();
+
+            Console.WriteLine(list);
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);

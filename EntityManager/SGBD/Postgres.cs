@@ -71,14 +71,14 @@ namespace EntityManager.SGBD
             return result;
         }
 
-        public override string CreateTable(PropertyInfo table)
+        public override string CreateTable(System.Type table)
         {
             string query = null;
             try
             {
                 List<PropertyInfo> contraintes = new List<PropertyInfo>();
-                query = "create table if not exists " + TableName(table.PropertyType) + "(";
-                foreach (PropertyInfo colonne in table.PropertyType.GetProperties(flag))
+                query = "create table if not exists " + TableName(table) + "(";
+                foreach (PropertyInfo colonne in table.GetProperties(flag))
                 {
                     string type = TypeName(colonne);
                     Object key = colonne.GetCustomAttribute(typeof(Id));
@@ -111,7 +111,7 @@ namespace EntityManager.SGBD
                 }
                 foreach (PropertyInfo contraint in contraintes)
                 {
-                    query += "constraint " + TableName(table.PropertyType) + "_" + ColonnName(contraint) + "_fkey Foreign key (" + ColonnName(contraint) + ") References " + TableName(contraint.PropertyType) + "(" + ReferenceName(contraint) + ") match simple on update cascade on delete no action,";
+                    query += "constraint " + TableName(table) + "_" + ColonnName(contraint) + "_fkey Foreign key (" + ColonnName(contraint) + ") References " + TableName(contraint.PropertyType) + "(" + ReferenceName(contraint) + ") match simple on update cascade on delete no action,";
                 }
                 query = query.Substring(0, query.Length - 1) + ")";
             }

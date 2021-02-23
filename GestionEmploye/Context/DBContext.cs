@@ -17,9 +17,9 @@ namespace GestionEmploye.Context
         {
 
         }
-        public Employe Employe { get; set; }
-        public Agent Agent { get; set; }
-        public Formateur Formateur { get; set; }
-        public IR IR { get; set; }
+        public DbSet<Employe> Employe { get; set; }
+        public DbSet<Agent> Agent { get; set; }
+        public DbSet<Formateur> Formateur { get; set; }
+        public DbSet<IR> IR { get; set; }
     }
 }

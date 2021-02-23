@@ -10,9 +10,9 @@ namespace EntityManager
 {
     public class DataBase
     {
-        BindingFlags flag = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
+        public static BindingFlags flag = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
 
-        Sgbd sgbd;
+        public static Sgbd sgbd;
         Sgbd.Type type;
         public DataBase(Sgbd.Type type, string connexionstring)
         {
@@ -30,25 +30,32 @@ namespace EntityManager
                         break;
                 }
 
-                foreach (PropertyInfo table in GetType().GetProperties())
+                foreach (PropertyInfo dbset in GetType().GetProperties())
                 {
-                    string query = sgbd.CreateTable(table);
-                    Console.WriteLine(query);
-                    using (DbConnection dbcon = sgbd.GetConnection())
+                    Type[] arguments = dbset.PropertyType.GetGenericArguments();
+                    if (arguments.Length > 0)
                     {
-                        if (dbcon != null)
+                        Type table = arguments[0];
+                        string query = sgbd.CreateTable(table);
+                        Console.WriteLine(query);
+                        using (DbConnection dbcon = sgbd.GetConnection())
                         {
-                            DbCommand command = sgbd.GetCommand(query, dbcon);
-                            try
+                            if (dbcon != null)
                             {
-                                command.ExecuteNonQuery();
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine(ex.Message);
+                                DbCommand command = sgbd.GetCommand(query, dbcon);
+                                try
+                                {
+                                    command.ExecuteNonQuery();
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine(ex.Message);
+                                }
                             }
                         }
+
                     }
+                    dbset.SetValue(this, Activator.CreateInstance(dbset.PropertyType));
 
                 }
             }

@@ -67,16 +67,16 @@ namespace EntityManager.SGBD
             }
             return result;
         }
-        public override string CreateTable(PropertyInfo proterty)
+        public override string CreateTable(System.Type table)
         {
             string query = null;
             try
             {
                 List<PropertyInfo> contrainte = new List<PropertyInfo>();
 
-                query = "create table if not exists " + TableName(proterty.PropertyType) + "(";
+                query = "create table if not exists " + TableName(table) + "(";
                 string id = null;
-                foreach (PropertyInfo info in proterty.PropertyType.GetProperties(flag))
+                foreach (PropertyInfo info in table.GetProperties(flag))
                 {
                     string type = TypeName(info);
                     Object key = info.GetCustomAttribute(typeof(Id));
