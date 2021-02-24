@@ -17,7 +17,7 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            var list = db.IR.ToList();
+            var list = db.Agent.ToList();
 
             Console.WriteLine(list);
 

@@ -12,11 +12,12 @@ namespace EntityManager
     {
         public static BindingFlags flag = BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic;
 
-        public static Sgbd sgbd;
-        Sgbd.Type type;
+        static Sgbd sgbd;
+
+        public static Sgbd SGBD { get { return sgbd; } }
+
         public DataBase(Sgbd.Type type, string connexionstring)
         {
-            this.type = type;
             try
             {
                 switch (type)

@@ -27,7 +27,7 @@ namespace EntityManager.SGBD
 
         public abstract string TypeName(PropertyInfo colonne);
 
-        
+
 
         public string TableName(System.Type table)
         {
@@ -77,6 +77,27 @@ namespace EntityManager.SGBD
             {
                 Object obj = colonne.GetCustomAttribute(typeof(Id));
                 if (obj != null)
+                {
+                    return colonne;
+                }
+
+            }
+            return null;
+
+        }
+
+        public PropertyInfo GetProperty(System.Type table, string colonname)
+        {
+
+            foreach (PropertyInfo colonne in table.GetProperties(flag))
+            {
+                Object obj = colonne.GetCustomAttribute(typeof(Colonne));
+                if (obj != null ? (obj as Colonne).Name == colonname : false)
+                {
+                    return colonne;
+                }
+                obj = colonne.GetCustomAttribute(typeof(JoinColumn));
+                if (obj != null ? (obj as JoinColumn).Name == colonname : false)
                 {
                     return colonne;
                 }
