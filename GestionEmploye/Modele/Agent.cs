@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using static EntityManager.SGBD.Sgbd;
 
 namespace GestionEmploye.Modele
 {
@@ -16,6 +17,7 @@ namespace GestionEmploye.Modele
         [Colonne(Name = "primeresponsabilite")]
         public double PrimeResponsabilite { get; set; }
         [JoinColumn(Name = "employe", Reference = "id")]
+        [ManyToOne(Fetch = FetchType.EAGER)]
         public Employe Employe { get; set; }
     }
 }

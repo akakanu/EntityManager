@@ -17,7 +17,7 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            var list = db.Agent.ToList();
+            var list = db.Agent.Where(x => x.Id != 2 && x.Id != 3 && x.Id != 4).ToList();
 
             Console.WriteLine(list);
 

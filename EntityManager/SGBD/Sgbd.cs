@@ -109,5 +109,7 @@ namespace EntityManager.SGBD
 
         public enum Type { POSTGRES, MYSQL, SQLSERVER, ACCESS, ORACLE }
 
+        public enum FetchType { LAZY, EAGER }
+
     }
 }
