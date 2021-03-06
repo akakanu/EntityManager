@@ -112,38 +112,7 @@ namespace EntityManager
         {
             try
             {
-                Expression left = null;
-                Expression right = null;
-                BinaryExpression be = expression.Body as BinaryExpression;
-                if (be != null)
-                {
-                    left = be.Left;
-                    right = be.Right;
-                }
-                else
-                {
-                    MethodCallExpression mc = expression.Body as MethodCallExpression;
-                    if (mc != null && mc.Method.Name == "Equals" && mc.Arguments.Count == 1)
-                    {
-                        left = mc.Object; // "left"
-                        right = mc.Arguments[0]; // "right"
-                    }
-                }
-                if (left != null && right != null)
-                {
-                    string propertyName = (left as MemberExpression).Member.Name;
-                    System.Type[] arguments = this.GetType().GetGenericArguments();
-                    if (arguments.Length > 0)
-                    {
-                        System.Type table = arguments[0];
-                        PropertyInfo colonne = table.GetProperty(propertyName);
-                        string colonneName = DataBase.SGBD.ColonnName(colonne);
-                        Object value = (right as ConstantExpression).Value;
-                        string parameterName = GetParameterName(colonneName, colonneName);
-                        condition += (condition == "" ? " where " : " and ") + colonneName + " " + GetSymboleOperant(expression.Body.NodeType) + " :" + parameterName;
-                        parameters.Add(DataBase.SGBD.GetParameter(parameterName, value));
-                    }
-                }
+                AddExpression(expression.Body);
             }
             catch (Exception ex)
             {
@@ -154,9 +123,108 @@ namespace EntityManager
             return this;
         }
 
+        public void AddExpression(Expression expression)
+        {
+            try
+            {
+                Expression[] result = GetExpressions(expression);
+                Expression left = result[0];
+                Expression right = result[1];
+                if (left != null && right != null)
+                {
+
+                    if (left is MemberExpression)
+                    {
+                        AddCondition(left, right, expression.NodeType);
+                    }
+                    else
+                    {
+                        if (left is BinaryExpression)
+                        {
+                            if (condition.Contains(" where ") && !condition.EndsWith(" and ") && !condition.EndsWith(" or "))
+                            {
+                                condition += " " + GetSymboleOperant(expression.NodeType);
+                            }
+                            AddExpression(left);
+                        }
+                        if (right is BinaryExpression)
+                        {
+                            if (condition.Contains(" where ") && !condition.EndsWith(" and ") && !condition.EndsWith(" or "))
+                            {
+                                condition += " " + GetSymboleOperant(expression.NodeType);
+                            }
+                            AddExpression(right);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private Expression[] GetExpressions(Expression expression)
+        {
+            Expression[] result = new Expression[2];
+            try
+            {
+                Expression left = null;
+                Expression right = null;
+                BinaryExpression be = expression as BinaryExpression;
+                if (be != null)
+                {
+                    left = be.Left;
+                    right = be.Right;
+                }
+                else
+                {
+                    MethodCallExpression mc = expression as MethodCallExpression;
+                    if (mc != null && mc.Method.Name == "Equals" && mc.Arguments.Count == 1)
+                    {
+                        left = mc.Object; // "left"
+                        right = mc.Arguments[0]; // "right"
+                    }
+                }
+                result[0] = left;
+                result[1] = right;
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+            return result;
+        }
+
+        private void AddCondition(Expression left, Expression right, ExpressionType operant)
+        {
+            try
+            {
+                string propertyName = (left as MemberExpression).Member.Name;
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    PropertyInfo colonne = table.GetProperty(propertyName);
+                    string colonneName = DataBase.SGBD.ColonnName(colonne);
+                    Object value = (right as ConstantExpression).Value;
+                    string parameterName = GetParameterName(colonneName, colonneName);
+                    condition += (condition == "" ? " where " : " ") + colonneName + " " + GetSymboleOperant(operant) + " :" + parameterName;
+                    parameters.Add(DataBase.SGBD.GetParameter(parameterName, value));
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+        }
+
         private string GetSymboleOperant(ExpressionType operant)
         {
-            string symbole = "=";
             try
             {
                 switch (operant)
@@ -165,6 +233,10 @@ namespace EntityManager
                         return "!=";
                     case ExpressionType.Equal:
                         return "=";
+                    case ExpressionType.AndAlso:
+                        return "and";
+                    case ExpressionType.OrElse:
+                        return "or";
                 }
             }
             catch (Exception ex)
@@ -172,7 +244,7 @@ namespace EntityManager
 
                 Console.WriteLine(ex.Message);
             }
-            return symbole;
+            return "";
         }
 
         private string GetParameterName(string colonneName, string parametre)
