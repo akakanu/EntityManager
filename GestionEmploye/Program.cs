@@ -17,7 +17,7 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            var list = db.Agent.Where(x => (x.Id != 2 && x.Id != 3) || x.Id != 4 || x.Id != 5).ToList();
+            var list = db.IR.Select(x => x.BorneMin).COUNT(x => x.Id).GroupBy(x => x.BorneMin).ToList();
 
             Console.WriteLine(list);
 

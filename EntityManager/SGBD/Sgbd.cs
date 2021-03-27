@@ -111,5 +111,15 @@ namespace EntityManager.SGBD
 
         public enum FetchType { LAZY, EAGER }
 
+        public enum OrderBY
+        {
+            ASC, DESC
+        }
+
+        public enum Agregat
+        {
+           NOTHING, COUNT, MIN, MAX, AVG, SUM
+        }
+
     }
 }

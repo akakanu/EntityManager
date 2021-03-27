@@ -8,30 +8,83 @@ using static EntityManager.SGBD.Sgbd;
 
 namespace EntityManager
 {
-    public class DbSet<T>
+    public class DbSet<T> : AbstractDbSet
     {
+        string colonne = "";
         string condition = "";
+        string orderBy = "";
+        string groupBy = "";
         List<DbParameter> parameters = new List<DbParameter>();
 
-        public List<T> ToList()
+        private void Reset()
         {
-            List<T> result = new List<T>();
-            string query = null;
+            colonne = "";
+            condition = "";
+            orderBy = "";
+            groupBy = "";
+            parameters = new List<DbParameter>();
+        }
+
+        public override Object One(Object value)
+        {
             try
             {
                 System.Type[] arguments = this.GetType().GetGenericArguments();
                 if (arguments.Length > 0)
                 {
                     System.Type table = arguments[0];
-                    query = "select ";
-                    foreach (PropertyInfo colonne in table.GetProperties(DataBase.flag))
+                    PropertyInfo key = DataBase.SGBD.Key(table);
+                    if (key != null)
                     {
-                        query += DataBase.SGBD.ColonnName(colonne) + ", ";
+                        string keyName = DataBase.SGBD.ColonnName(key);
+                        condition = " where " + keyName + " = :" + keyName;
+                        parameters.Clear();
+                        parameters.Add(DataBase.SGBD.GetParameter(":" + keyName, value));
+                        List<T> result = ToList();
+                        if (result != null ? result.Count > 0 : false)
+                        {
+                            return result[0];
+                        }
                     }
-                    query = query.Trim().Substring(0, query.Trim().Length - 1) + " from " + DataBase.SGBD.TableName(table);
+                }
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+            return null;
+        }
+
+        public List<T> ToList()
+        {
+            List<T> result = new List<T>();
+            try
+            {
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    if (colonne == "")
+                    {
+                        foreach (PropertyInfo colonne in table.GetProperties(DataBase.flag))
+                        {
+                            this.colonne += DataBase.SGBD.ColonnName(colonne) + ", ";
+                        }
+                        colonne = colonne.Trim().Substring(0, colonne.Trim().Length - 1);
+                    }
+                    string query = "select " + colonne + " from " + DataBase.SGBD.TableName(table);
                     if (parameters.Count > 0)
                     {
                         query += condition;
+                    }
+                    if (orderBy != "")
+                    {
+                        query += orderBy;
+                    }
+                    if (groupBy != "")
+                    {
+                        query += groupBy;
                     }
                     Console.WriteLine(query);
                     using (DbConnection dbcon = DataBase.SGBD.GetConnection())
@@ -65,7 +118,11 @@ namespace EntityManager
                                                     }
                                                     if (load)
                                                     {
-                                                        //foreign = new DbSet<ManyToOne>().Where(x=> x.;
+                                                        AbstractDbSet dbSet = DataBase.GetInstance.GetDbSet(colonne.PropertyType);
+                                                        if (dbSet != null)
+                                                        {
+                                                            foreign = dbSet.One(reader[i]);
+                                                        }
                                                     }
                                                     else
                                                     {
@@ -105,6 +162,7 @@ namespace EntityManager
 
                 Console.WriteLine(ex.Message);
             }
+            Reset();
             return result;
         }
 
@@ -120,6 +178,134 @@ namespace EntityManager
                 Console.WriteLine(ex.Message);
             }
 
+            return this;
+        }
+
+        public DbSet<T> OrderBy(Expression<Func<T, Object>> expression, OrderBY orderBy)
+        {
+            try
+            {
+                if (expression.Body is UnaryExpression)
+                {
+                    UnaryExpression lbex = expression.Body as UnaryExpression;
+                    MemberExpression operand = lbex.Operand as MemberExpression;
+                    string propertyName = operand.Member.Name;
+                    System.Type[] arguments = this.GetType().GetGenericArguments();
+                    if (arguments.Length > 0)
+                    {
+                        System.Type table = arguments[0];
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        string colonneName = DataBase.SGBD.ColonnName(colonne);
+                        this.orderBy += (this.orderBy == "" ? " order by " + colonneName : "," + colonneName) + "" + (orderBy == OrderBY.DESC ? " desc" : "");
+
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+            return this;
+        }
+
+        public DbSet<T> Select(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.NOTHING);
+        }
+        public DbSet<T> AVG(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.AVG);
+        }
+        public DbSet<T> SUM(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.SUM);
+        }
+        public DbSet<T> MIN(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.MIN);
+        }
+        public DbSet<T> MAX(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.MAX);
+        }
+        public DbSet<T> COUNT(Expression<Func<T, Object>> expression)
+        {
+            return Select(expression, Agregat.COUNT);
+        }
+
+        private DbSet<T> Select(Expression<Func<T, Object>> expression, Agregat agregat)
+        {
+            try
+            {
+                if (expression.Body is UnaryExpression)
+                {
+                    UnaryExpression lbex = expression.Body as UnaryExpression;
+                    MemberExpression operand = lbex.Operand as MemberExpression;
+                    string propertyName = operand.Member.Name;
+                    System.Type[] arguments = this.GetType().GetGenericArguments();
+                    if (arguments.Length > 0)
+                    {
+                        System.Type table = arguments[0];
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        string colonneName = DataBase.SGBD.ColonnName(colonne);
+                        switch (agregat)
+                        {
+                            case Agregat.AVG:
+                                colonneName = "AVG(" + colonneName + ")";
+                                break;
+                            case Agregat.SUM:
+                                colonneName = "SUM(" + colonneName + ")";
+                                break;
+                            case Agregat.MIN:
+                                colonneName = "MIN(" + colonneName + ")";
+                                break;
+                            case Agregat.MAX:
+                                colonneName = "MAX(" + colonneName + ")";
+                                break;
+                            case Agregat.COUNT:
+                                colonneName = "COUNT(" + colonneName + ")";
+                                break;
+                        }
+                        this.colonne += (this.colonne == "" ? "" + colonneName : ", " + colonneName);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return this;
+        }
+        public DbSet<T> GroupBy(Expression<Func<T, Object>> expression)
+        {
+            try
+            {
+                if (expression.Body is UnaryExpression)
+                {
+                    UnaryExpression lbex = expression.Body as UnaryExpression;
+                    MemberExpression operand = lbex.Operand as MemberExpression;
+                    string propertyName = operand.Member.Name;
+                    System.Type[] arguments = this.GetType().GetGenericArguments();
+                    if (arguments.Length > 0)
+                    {
+                        System.Type table = arguments[0];
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        string colonneName = DataBase.SGBD.ColonnName(colonne);
+                        this.groupBy += (this.groupBy == "" ? " group by " + colonneName : ", " + colonneName);
+
+                    }
+
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
             return this;
         }
 
@@ -272,5 +458,6 @@ namespace EntityManager
             }
             return parametre;
         }
+
     }
 }

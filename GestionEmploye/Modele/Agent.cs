@@ -17,7 +17,7 @@ namespace GestionEmploye.Modele
         [Colonne(Name = "primeresponsabilite")]
         public double PrimeResponsabilite { get; set; }
         [JoinColumn(Name = "employe", Reference = "id")]
-        [ManyToOne(Fetch = FetchType.EAGER)]
+        [ManyToOne(Fetch = FetchType.LAZY)]
         public Employe Employe { get; set; }
     }
 }

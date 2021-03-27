@@ -14,7 +14,10 @@ namespace EntityManager
 
         static Sgbd sgbd;
 
+        static DataBase instance;
+
         public static Sgbd SGBD { get { return sgbd; } }
+        public static DataBase GetInstance { get { return instance; } }
 
         public DataBase(Sgbd.Type type, string connexionstring)
         {
@@ -64,6 +67,7 @@ namespace EntityManager
             {
                 Console.WriteLine(ex.Message);
             }
+            instance = this;
         }
 
         public Object Insert(Object obj)
@@ -198,7 +202,7 @@ namespace EntityManager
             try
             {
                 PropertyInfo key = sgbd.Key(objet.GetType());
-                if(key != null)
+                if (key != null)
                 {
                     query = "delete from " + sgbd.TableName(objet.GetType()) + " where " + sgbd.ColonnName(key) + " = :" + sgbd.ColonnName(key);
 
@@ -224,12 +228,36 @@ namespace EntityManager
 
                     }
                 }
-                
-            }catch(Exception ex)
+
+            }
+            catch (Exception ex)
             {
                 Console.WriteLine(ex.Message);
             }
             return false;
+        }
+
+        public AbstractDbSet GetDbSet(Type type)
+        {
+            try
+            {
+                foreach (PropertyInfo table in this.GetType().GetProperties(flag))
+                {
+                    System.Type[] arguments = table.PropertyType.GetGenericArguments();
+                    if (arguments.Length > 0)
+                    {
+                        if (arguments[0] == type)
+                        {
+                            return (AbstractDbSet)table.GetValue(this);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return null;
         }
     }
 }
