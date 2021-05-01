@@ -1,4 +1,5 @@
-﻿using EntityManager.Annotations;
+﻿using EntityManager;
+using EntityManager.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ using static EntityManager.SGBD.Sgbd;
 namespace GestionEmploye.Modele
 {
     [Table(Name = "agent", Schema = "public")]
-    public class Agent
+    public class Agent : Entity
     {
         [Id]
         [Colonne(Name = "id")]

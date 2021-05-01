@@ -27,8 +27,6 @@ namespace EntityManager.SGBD
 
         public abstract string TypeName(PropertyInfo colonne);
 
-
-
         public string TableName(System.Type table)
         {
             Object obj = table.GetCustomAttribute(typeof(Table));
@@ -119,6 +117,13 @@ namespace EntityManager.SGBD
         public enum Agregat
         {
            NOTHING, COUNT, MIN, MAX, AVG, SUM
+
+
+        }
+
+        public enum Join
+        {
+           INNER, LEFT, RIGHT
         }
 
     }

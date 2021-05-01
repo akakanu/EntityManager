@@ -1,4 +1,5 @@
-﻿using GestionEmploye.Context;
+﻿using EntityManager;
+using GestionEmploye.Context;
 using GestionEmploye.Modele;
 using System;
 using System.Collections.Generic;
@@ -17,7 +18,8 @@ namespace GestionEmploye
         static void Main()
         {
             DBContext db = new DBContext();
-            var list = db.IR.Select(x => x.BorneMin).COUNT(x => x.Id).GroupBy(x => x.BorneMin).ToList();
+            //var list = db.Agent.Select(x => new { x.Employe, x.Id }).Join(x => x.Employe, EntityManager.SGBD.Sgbd.Join.INNER).ToList().List<Employe>();
+            var list = db.Agent.Select(x => new { x.PrimeResponsabilite, Y = AbstractDbSet.AVG(x.Employe.Id) }).Join(x=> x.Employe, EntityManager.SGBD.Sgbd.Join.INNER).GroupBy(x => x.PrimeResponsabilite).ToList().List();
 
             Console.WriteLine(list);
 

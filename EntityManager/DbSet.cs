@@ -2,19 +2,24 @@
 using System;
 using System.Collections.Generic;
 using System.Data.Common;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using static EntityManager.SGBD.Sgbd;
 
 namespace EntityManager
 {
-    public class DbSet<T> : AbstractDbSet
+    public class DbSet<T> : AbstractDbSet where T : Entity
     {
         string colonne = "";
         string condition = "";
         string orderBy = "";
         string groupBy = "";
-        List<DbParameter> parameters = new List<DbParameter>();
+        string having = "";
+        string join = "";
+        List<DbParameter> parametersWhere = new List<DbParameter>();
+        List<DbParameter> parametersHaving = new List<DbParameter>();
+        System.Type contrainte = null;
 
         private void Reset()
         {
@@ -22,7 +27,11 @@ namespace EntityManager
             condition = "";
             orderBy = "";
             groupBy = "";
-            parameters = new List<DbParameter>();
+            having = "";
+            join = "";
+            parametersWhere = new List<DbParameter>();
+            parametersHaving = new List<DbParameter>();
+            contrainte = null;
         }
 
         public override Object One(Object value)
@@ -38,9 +47,9 @@ namespace EntityManager
                     {
                         string keyName = DataBase.SGBD.ColonnName(key);
                         condition = " where " + keyName + " = :" + keyName;
-                        parameters.Clear();
-                        parameters.Add(DataBase.SGBD.GetParameter(":" + keyName, value));
-                        List<T> result = ToList();
+                        parametersWhere.Clear();
+                        parametersWhere.Add(DataBase.SGBD.GetParameter(":" + keyName, value));
+                        List<Object> result = ToList().List();
                         if (result != null ? result.Count > 0 : false)
                         {
                             return result[0];
@@ -50,42 +59,21 @@ namespace EntityManager
             }
             catch (Exception ex)
             {
-
                 Console.WriteLine(ex.Message);
             }
             return null;
         }
 
-        public List<T> ToList()
+        public ResultQuery ToList()
         {
-            List<T> result = new List<T>();
+            List<Object> result = new List<Object>();
             try
             {
                 System.Type[] arguments = this.GetType().GetGenericArguments();
                 if (arguments.Length > 0)
                 {
-                    System.Type table = arguments[0];
-                    if (colonne == "")
-                    {
-                        foreach (PropertyInfo colonne in table.GetProperties(DataBase.flag))
-                        {
-                            this.colonne += DataBase.SGBD.ColonnName(colonne) + ", ";
-                        }
-                        colonne = colonne.Trim().Substring(0, colonne.Trim().Length - 1);
-                    }
-                    string query = "select " + colonne + " from " + DataBase.SGBD.TableName(table);
-                    if (parameters.Count > 0)
-                    {
-                        query += condition;
-                    }
-                    if (orderBy != "")
-                    {
-                        query += orderBy;
-                    }
-                    if (groupBy != "")
-                    {
-                        query += groupBy;
-                    }
+                    System.Type table = contrainte == null ? arguments[0] : contrainte;
+                    string query = GetQuery();
                     Console.WriteLine(query);
                     using (DbConnection dbcon = DataBase.SGBD.GetConnection())
                     {
@@ -94,56 +82,76 @@ namespace EntityManager
                             DbCommand command = DataBase.SGBD.GetCommand(query, dbcon);
                             try
                             {
-                                command.Parameters.AddRange(parameters.ToArray());
+                                command.Parameters.AddRange(parametersWhere.ToArray());
+                                command.Parameters.AddRange(parametersHaving.ToArray());
                                 using (DbDataReader reader = command.ExecuteReader())
                                 {
                                     while (reader.Read())
                                     {
-                                        T entity = (T)Activator.CreateInstance(table);
-                                        for (int i = 0; i < reader.FieldCount; i++)
+                                        if (colonne != "" && contrainte == null)
                                         {
-                                            string colonname = reader.GetName(i);
-                                            PropertyInfo colonne = DataBase.SGBD.GetProperty(table, colonname);
-                                            if (colonne != null)
+                                            if (reader.FieldCount > 1)
                                             {
-                                                if (colonne.GetCustomAttribute(typeof(JoinColumn)) != null)
+                                                object[] data = new object[reader.FieldCount];
+                                                for (int i = 0; i < reader.FieldCount; i++)
                                                 {
-                                                    Object foreign = Activator.CreateInstance(colonne.PropertyType);
+                                                    data[i] = reader[i];
+                                                }
+                                                result.Add(data);
+                                            }
+                                            else
+                                            {
+                                                result.Add(reader[0]);
+                                            }
+                                        }
+                                        else
+                                        {
+                                            Entity entity = (Entity)Activator.CreateInstance(table);
+                                            for (int i = 0; i < reader.FieldCount; i++)
+                                            {
+                                                string colonname = reader.GetName(i);
+                                                PropertyInfo colonne = DataBase.SGBD.GetProperty(table, colonname);
+                                                if (colonne != null)
+                                                {
+                                                    if (colonne.GetCustomAttribute(typeof(JoinColumn)) != null)
+                                                    {
+                                                        Object foreign = Activator.CreateInstance(colonne.PropertyType);
 
-                                                    Object manytoone = colonne.GetCustomAttribute(typeof(ManyToOne));
-                                                    bool load = false;
-                                                    if (manytoone != null ? (manytoone as ManyToOne).Fetch == FetchType.EAGER : false)
-                                                    {
-                                                        load = true;
-                                                    }
-                                                    if (load)
-                                                    {
-                                                        AbstractDbSet dbSet = DataBase.GetInstance.GetDbSet(colonne.PropertyType);
-                                                        if (dbSet != null)
+                                                        Object manytoone = colonne.GetCustomAttribute(typeof(ManyToOne));
+                                                        bool load = false;
+                                                        if (manytoone != null ? (manytoone as ManyToOne).Fetch == FetchType.EAGER : false)
                                                         {
-                                                            foreign = dbSet.One(reader[i]);
+                                                            load = true;
                                                         }
+                                                        if (load)
+                                                        {
+                                                            AbstractDbSet dbSet = DataBase.GetInstance.GetDbSet(colonne.PropertyType);
+                                                            if (dbSet != null)
+                                                            {
+                                                                foreign = dbSet.One(reader[i]);
+                                                            }
+                                                        }
+                                                        else
+                                                        {
+                                                            PropertyInfo fkey = DataBase.SGBD.Key(colonne.PropertyType);
+                                                            if (fkey != null)
+                                                            {
+                                                                fkey.SetValue(foreign, reader[i]);
+                                                            }
+                                                        }
+
+                                                        colonne.SetValue(entity, foreign);
                                                     }
                                                     else
                                                     {
-                                                        PropertyInfo fkey = DataBase.SGBD.Key(colonne.PropertyType);
-                                                        if (fkey != null)
-                                                        {
-                                                            fkey.SetValue(foreign, reader[i]);
-                                                        }
+                                                        colonne.SetValue(entity, reader[i]);
                                                     }
 
-                                                    colonne.SetValue(entity, foreign);
-                                                }
-                                                else
-                                                {
-                                                    colonne.SetValue(entity, reader[i]);
                                                 }
 
                                             }
-
+                                            result.Add(entity);
                                         }
-                                        result.Add(entity);
                                     }
 
                                 }
@@ -155,22 +163,23 @@ namespace EntityManager
                         }
                     }
                 }
-
             }
             catch (Exception ex)
             {
-
                 Console.WriteLine(ex.Message);
             }
-            Reset();
-            return result;
+            finally
+            {
+                Reset();
+            }
+            return new ResultQuery(result);
         }
 
         public DbSet<T> Where(Expression<Func<T, bool>> expression)
         {
             try
             {
-                AddExpression(expression.Body);
+                AddWhere(expression.Body);
             }
             catch (Exception ex)
             {
@@ -213,63 +222,33 @@ namespace EntityManager
 
         public DbSet<T> Select(Expression<Func<T, Object>> expression)
         {
-            return Select(expression, Agregat.NOTHING);
-        }
-        public DbSet<T> AVG(Expression<Func<T, Object>> expression)
-        {
-            return Select(expression, Agregat.AVG);
-        }
-        public DbSet<T> SUM(Expression<Func<T, Object>> expression)
-        {
-            return Select(expression, Agregat.SUM);
-        }
-        public DbSet<T> MIN(Expression<Func<T, Object>> expression)
-        {
-            return Select(expression, Agregat.MIN);
-        }
-        public DbSet<T> MAX(Expression<Func<T, Object>> expression)
-        {
-            return Select(expression, Agregat.MAX);
-        }
-        public DbSet<T> COUNT(Expression<Func<T, Object>> expression)
-        {
-            return Select(expression, Agregat.COUNT);
-        }
-
-        private DbSet<T> Select(Expression<Func<T, Object>> expression, Agregat agregat)
-        {
             try
             {
+                contrainte = null;
                 if (expression.Body is UnaryExpression)
                 {
                     UnaryExpression lbex = expression.Body as UnaryExpression;
                     MemberExpression operand = lbex.Operand as MemberExpression;
-                    string propertyName = operand.Member.Name;
-                    System.Type[] arguments = this.GetType().GetGenericArguments();
-                    if (arguments.Length > 0)
+                    AddSelect(operand);
+                }
+                else if (expression.Body is MemberExpression)
+                {
+                    MemberExpression exp = expression.Body as MemberExpression;
+                    if (colonne == "")
                     {
-                        System.Type table = arguments[0];
-                        PropertyInfo colonne = table.GetProperty(propertyName);
-                        string colonneName = DataBase.SGBD.ColonnName(colonne);
-                        switch (agregat)
-                        {
-                            case Agregat.AVG:
-                                colonneName = "AVG(" + colonneName + ")";
-                                break;
-                            case Agregat.SUM:
-                                colonneName = "SUM(" + colonneName + ")";
-                                break;
-                            case Agregat.MIN:
-                                colonneName = "MIN(" + colonneName + ")";
-                                break;
-                            case Agregat.MAX:
-                                colonneName = "MAX(" + colonneName + ")";
-                                break;
-                            case Agregat.COUNT:
-                                colonneName = "COUNT(" + colonneName + ")";
-                                break;
-                        }
-                        this.colonne += (this.colonne == "" ? "" + colonneName : ", " + colonneName);
+                        contrainte = exp.Type;
+                    }
+                    foreach (PropertyInfo colonne in exp.Type.GetProperties(DataBase.flag))
+                    {
+                        AddSelect(exp.Type, colonne, Agregat.NOTHING);
+                    }
+                }
+                else if (expression.Body is NewExpression)
+                {
+                    NewExpression lbex = expression.Body as NewExpression;
+                    foreach (Expression argument in lbex.Arguments)
+                    {
+                        AddSelect(argument);
                     }
                 }
             }
@@ -279,6 +258,7 @@ namespace EntityManager
             }
             return this;
         }
+
         public DbSet<T> GroupBy(Expression<Func<T, Object>> expression)
         {
             try
@@ -287,29 +267,197 @@ namespace EntityManager
                 {
                     UnaryExpression lbex = expression.Body as UnaryExpression;
                     MemberExpression operand = lbex.Operand as MemberExpression;
+                    AddGroup(operand);
+                }
+                else if (expression.Body is NewExpression)
+                {
+                    NewExpression lbex = expression.Body as NewExpression;
+                    foreach (Expression argument in lbex.Arguments)
+                    {
+                        AddGroup(argument);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return this;
+        }
+
+        public DbSet<T> Having(Expression<Func<T, bool>> expression)
+        {
+            try
+            {
+                AddHaving(expression.Body);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return this;
+        }
+
+        public DbSet<T> Join(Expression<Func<T, Object>> expression, SGBD.Sgbd.Join join)
+        {
+            try
+            {
+                if (expression.Body is MemberExpression)
+                {
+                    MemberExpression operand = expression.Body as MemberExpression;
+                    AddJoin(operand, join);
+                }
+                else if (expression.Body is NewExpression)
+                {
+                    NewExpression lbex = expression.Body as NewExpression;
+                    foreach (Expression argument in lbex.Arguments)
+                    {
+                        AddJoin(argument, join);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return this;
+        }
+
+        private void AddSelect(Expression expression)
+        {
+            try
+            {
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    if (expression is MemberExpression)
+                    {
+                        MemberExpression operand = expression as MemberExpression;
+                        string propertyName = operand.Member.Name;
+                        var exp = operand.Expression;
+                        if (exp is MemberExpression)
+                        {
+                            MemberExpression foreing = exp as MemberExpression;
+                            table = foreing.Type;
+                        }
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        AddSelect(table, colonne, Agregat.NOTHING);
+                    }
+                    else if (expression is MethodCallExpression)
+                    {
+                        MethodCallExpression operand = expression as MethodCallExpression;
+                        string methodeName = operand.Method.Name;
+                        Agregat agregat = GetAgregat(methodeName);
+                        var exp = operand.Arguments[0];
+                        string propertyName = exp.Type.Name;
+                        if (exp is UnaryExpression)
+                        {
+                            UnaryExpression lbex = exp as UnaryExpression;
+                            MemberExpression ope = lbex.Operand as MemberExpression;
+                            exp = ope.Expression;
+                            propertyName = ope.Member.Name;
+                        }
+                        if (exp is MemberExpression)
+                        {
+                            MemberExpression foreing = exp as MemberExpression;
+                            table = foreing.Type;
+                        }
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        AddSelect(table, colonne, agregat);
+
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private Agregat GetAgregat(string name)
+        {
+            if (name.Equals(Agregat.AVG.ToString()))
+            {
+                return Agregat.AVG;
+            }
+            else if (name.Equals(Agregat.COUNT.ToString()))
+            {
+                return Agregat.COUNT;
+            }
+            else if (name.Equals(Agregat.MAX.ToString()))
+            {
+                return Agregat.MAX;
+            }
+            else if (name.Equals(Agregat.MIN.ToString()))
+            {
+                return Agregat.MIN;
+            }
+            else if (name.Equals(Agregat.SUM.ToString()))
+            {
+                return Agregat.SUM;
+            }
+            return Agregat.NOTHING;
+        }
+
+        private void AddSelect(System.Type table, PropertyInfo colonne, Agregat agregat)
+        {
+            try
+            {
+                string tableName = DataBase.SGBD.TableName(table);
+                string colonneName = tableName + "." + DataBase.SGBD.ColonnName(colonne);
+                switch (agregat)
+                {
+                    case Agregat.AVG:
+                        colonneName = "AVG(" + colonneName + ")";
+                        break;
+                    case Agregat.SUM:
+                        colonneName = "SUM(" + colonneName + ")";
+                        break;
+                    case Agregat.MIN:
+                        colonneName = "MIN(" + colonneName + ")";
+                        break;
+                    case Agregat.MAX:
+                        colonneName = "MAX(" + colonneName + ")";
+                        break;
+                    case Agregat.COUNT:
+                        colonneName = "COUNT(" + colonneName + ")";
+                        break;
+                }
+                this.colonne += (this.colonne == "" ? "" + colonneName : ", " + colonneName);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private void AddGroup(Expression expression)
+        {
+            try
+            {
+                if (expression is MemberExpression)
+                {
+                    MemberExpression operand = expression as MemberExpression;
                     string propertyName = operand.Member.Name;
                     System.Type[] arguments = this.GetType().GetGenericArguments();
                     if (arguments.Length > 0)
                     {
                         System.Type table = arguments[0];
                         PropertyInfo colonne = table.GetProperty(propertyName);
-                        string colonneName = DataBase.SGBD.ColonnName(colonne);
+                        string tableName = DataBase.SGBD.TableName(table);
+                        string colonneName = tableName + "." + DataBase.SGBD.ColonnName(colonne);
                         this.groupBy += (this.groupBy == "" ? " group by " + colonneName : ", " + colonneName);
-
                     }
-
                 }
-
             }
             catch (Exception ex)
             {
-
                 Console.WriteLine(ex.Message);
             }
-            return this;
         }
 
-        public void AddExpression(Expression expression)
+        private void AddHaving(Expression expression)
         {
             try
             {
@@ -321,7 +469,48 @@ namespace EntityManager
 
                     if (left is MemberExpression)
                     {
-                        AddCondition(left, right, expression.NodeType);
+                        AddHaving(left, right, expression.NodeType);
+                    }
+                    else
+                    {
+                        if (left is BinaryExpression)
+                        {
+                            if (having.Contains(" having ") && !having.EndsWith(" and ") && !having.EndsWith(" or "))
+                            {
+                                having += " " + GetSymboleOperant(expression.NodeType);
+                            }
+                            AddHaving(left);
+                        }
+                        if (right is BinaryExpression)
+                        {
+                            if (having.Contains(" where ") && !having.EndsWith(" and ") && !having.EndsWith(" or "))
+                            {
+                                having += " " + GetSymboleOperant(expression.NodeType);
+                            }
+                            AddHaving(right);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private void AddWhere(Expression expression)
+        {
+            try
+            {
+                Expression[] result = GetExpressions(expression);
+                Expression left = result[0];
+                Expression right = result[1];
+                if (left != null && right != null)
+                {
+
+                    if (left is MemberExpression)
+                    {
+                        AddWhere(left, right, expression.NodeType);
                     }
                     else
                     {
@@ -331,7 +520,7 @@ namespace EntityManager
                             {
                                 condition += " " + GetSymboleOperant(expression.NodeType);
                             }
-                            AddExpression(left);
+                            AddWhere(left);
                         }
                         if (right is BinaryExpression)
                         {
@@ -339,16 +528,156 @@ namespace EntityManager
                             {
                                 condition += " " + GetSymboleOperant(expression.NodeType);
                             }
-                            AddExpression(right);
+                            AddWhere(right);
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private void AddWhere(Expression left, Expression right, ExpressionType operant)
+        {
+            try
+            {
+                string propertyName = (left as MemberExpression).Member.Name;
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    PropertyInfo colonne = table.GetProperty(propertyName);
+                    string colonneName = DataBase.SGBD.ColonnName(colonne);
+                    Object value = (right as ConstantExpression).Value;
+                    string parameterName = GetParameterName(colonneName, colonneName);
+                    string tableName = DataBase.SGBD.TableName(table);
+                    condition += (condition == "" ? " where " : " ") + tableName + "." + colonneName + " " + GetSymboleOperant(operant) + " :" + parameterName;
+                    parametersWhere.Add(DataBase.SGBD.GetParameter(parameterName, value));
+                }
+
+            }
+            catch (Exception ex)
+            {
 
                 Console.WriteLine(ex.Message);
             }
+        }
+
+        private void AddHaving(Expression left, Expression right, ExpressionType operant)
+        {
+            try
+            {
+                string propertyName = (left as MemberExpression).Member.Name;
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    PropertyInfo colonne = table.GetProperty(propertyName);
+                    string colonneName = DataBase.SGBD.ColonnName(colonne);
+                    Object value = (right as ConstantExpression).Value;
+                    string parameterName = GetParameterName(colonneName, colonneName);
+                    string tableName = DataBase.SGBD.TableName(table);
+                    having += (having == "" ? " having " : " ") + tableName + "." + colonneName + " " + GetSymboleOperant(operant) + " :" + parameterName;
+                    parametersHaving.Add(DataBase.SGBD.GetParameter(parameterName, value));
+                }
+
+            }
+            catch (Exception ex)
+            {
+
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private void AddJoin(Expression expression, SGBD.Sgbd.Join join)
+        {
+            try
+            {
+                if (expression is MemberExpression)
+                {
+                    MemberExpression operand = expression as MemberExpression;
+                    string propertyName = operand.Member.Name;
+                    System.Type[] arguments = this.GetType().GetGenericArguments();
+                    if (arguments.Length > 0)
+                    {
+                        System.Type table = arguments[0];
+                        PropertyInfo colonne = table.GetProperty(propertyName);
+                        if (colonne.GetCustomAttribute(typeof(JoinColumn)) != null)
+                        {
+                            string tableName = DataBase.SGBD.TableName(table);
+                            string colonneName = tableName + "." + DataBase.SGBD.ColonnName(colonne);
+                            string liaison = " inner join ";
+                            switch (join)
+                            {
+                                case SGBD.Sgbd.Join.LEFT:
+                                    liaison = " left join ";
+                                    break;
+                                case SGBD.Sgbd.Join.RIGHT:
+                                    liaison = " right join ";
+                                    break;
+                            }
+                            string referenceTable = DataBase.SGBD.TableName(colonne.PropertyType);
+                            string referenceName = referenceTable + "." + DataBase.SGBD.ReferenceName(colonne);
+                            liaison += referenceTable + " " + referenceTable + " on " + colonneName + " = " + referenceName;
+                            this.join += liaison;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+
+        private string GetQuery()
+        {
+            string query = "";
+            try
+            {
+                System.Type[] arguments = this.GetType().GetGenericArguments();
+                if (arguments.Length > 0)
+                {
+                    System.Type table = arguments[0];
+                    string tableName = DataBase.SGBD.TableName(table);
+                    if (colonne == "")
+                    {
+                        foreach (PropertyInfo colonne in table.GetProperties(DataBase.flag))
+                        {
+                            this.colonne += tableName + "." + DataBase.SGBD.ColonnName(colonne) + ", ";
+                        }
+                        colonne = colonne.Trim().Substring(0, colonne.Trim().Length - 1);
+                    }
+                    query = "select " + colonne + " from " + tableName + " " + tableName;
+                    if (join != "")
+                    {
+                        query += join;
+                    }
+                    if (condition != "")
+                    {
+                        query += condition;
+                    }
+                    if (orderBy != "")
+                    {
+                        query += orderBy;
+                    }
+                    if (groupBy != "")
+                    {
+                        query += groupBy;
+                    }
+                    if (having != "")
+                    {
+                        query += having;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return query;
         }
 
         private Expression[] GetExpressions(Expression expression)
@@ -382,31 +711,6 @@ namespace EntityManager
                 Console.WriteLine(ex.Message);
             }
             return result;
-        }
-
-        private void AddCondition(Expression left, Expression right, ExpressionType operant)
-        {
-            try
-            {
-                string propertyName = (left as MemberExpression).Member.Name;
-                System.Type[] arguments = this.GetType().GetGenericArguments();
-                if (arguments.Length > 0)
-                {
-                    System.Type table = arguments[0];
-                    PropertyInfo colonne = table.GetProperty(propertyName);
-                    string colonneName = DataBase.SGBD.ColonnName(colonne);
-                    Object value = (right as ConstantExpression).Value;
-                    string parameterName = GetParameterName(colonneName, colonneName);
-                    condition += (condition == "" ? " where " : " ") + colonneName + " " + GetSymboleOperant(operant) + " :" + parameterName;
-                    parameters.Add(DataBase.SGBD.GetParameter(parameterName, value));
-                }
-
-            }
-            catch (Exception ex)
-            {
-
-                Console.WriteLine(ex.Message);
-            }
         }
 
         private string GetSymboleOperant(ExpressionType operant)
@@ -459,5 +763,50 @@ namespace EntityManager
             return parametre;
         }
 
+    }
+
+    public class ResultQuery
+    {
+        List<Object> data = new List<object>();
+
+        public ResultQuery(List<Object> data)
+        {
+            this.data = data;
+        }
+
+        public List<Object> List()
+        {
+            return data;
+        }
+
+        public T One<T>() where T : Entity
+        {
+            Object result = null;
+            try
+            {
+                if (data != null ? data.Count > 0 : false)
+                {
+                    result = data[0];
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return (T)result;
+        }
+
+        public List<T> List<T>() where T : Entity
+        {
+            try
+            {
+                return data.Cast<T>().ToList();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+            return null;
+        }
     }
 }

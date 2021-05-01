@@ -1,4 +1,5 @@
-﻿using EntityManager.Annotations;
+﻿using EntityManager;
+using EntityManager.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -8,7 +9,7 @@ using System.Threading.Tasks;
 namespace GestionEmploye.Modele
 {
     [Table(Name = "employe", Schema = "public")]
-    public class Employe
+    public class Employe : Entity
     {
 
         [Id]
